@@ -129,12 +129,10 @@ async def llm_health():
 # ============================================
 # API Routes (will be added in Phase 7)
 # ============================================
-# from app.api.routes_user import router as user_router
-# from app.api.routes_session import router as session_router
-# from app.api.routes_progress import router as progress_router
-# from app.api.routes_learning import router as learning_router
-#
-# app.include_router(user_router, prefix="/api")
-# app.include_router(session_router, prefix="/api")
-# app.include_router(progress_router, prefix="/api")
-# app.include_router(learning_router, prefix="/api")
+from app.api.routes_learning import router as learning_router
+from app.api.routes_progress import router as progress_router
+
+# app.include_router(user_router, prefix="/api/user", tags=["User"])
+# app.include_router(session_router, prefix="/api/session", tags=["Session"])
+app.include_router(progress_router, prefix="/api/progress", tags=["Progress"])
+app.include_router(learning_router, prefix="/api/learning", tags=["Learning"])
