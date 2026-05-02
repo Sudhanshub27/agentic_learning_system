@@ -1,4 +1,5 @@
 from app.agents.base import BaseAgent
+from app.services.memory_service import memory_service
 
 class MemoryAgent(BaseAgent):
     """
@@ -6,8 +7,6 @@ class MemoryAgent(BaseAgent):
     This doesn't use a structured JSON output, it returns a dense markdown summary.
     """
     def __init__(self):
-        # We don't have a specific file for memory yet, so we just pass a string inline
-        # or load a simple prompt. We'll bypass the file loader for this simple one.
         super().__init__(role_name="Memory", prompt_filename="memory.md")
         self.prompt_template = """
         You are the Memory Agent. 
@@ -18,6 +17,7 @@ class MemoryAgent(BaseAgent):
         
     async def summarize_session(
         self, 
+        user_id: str,
         subject: str,
         topics_covered: list[str],
         overall_performance: str,
@@ -33,10 +33,19 @@ class MemoryAgent(BaseAgent):
         Please provide a dense summary of this session for vector storage.
         """
         
-        return await self.generate_text(
+        summary = await self.generate_text(
             task_type="curriculum", 
             user_prompt=user_prompt,
             temperature=0.3 
         )
+        
+        # Store in ChromaDB
+        await memory_service.store_session(
+            user_id=user_id,
+            subject=subject,
+            summary=summary
+        )
+        
+        return summary
 
 memory_agent = MemoryAgent()

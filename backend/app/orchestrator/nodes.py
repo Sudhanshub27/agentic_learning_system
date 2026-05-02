@@ -20,6 +20,7 @@ async def planner_node(state: AgentState) -> Dict[str, Any]:
         return {}
         
     result = await planner_agent.generate_curriculum(
+        user_id=state["user_id"],
         subject_name=state["subject_name"],
         subject_description=state["subject_description"],
         user_goals=state["user_goals"],
@@ -51,6 +52,7 @@ async def tutor_node(state: AgentState) -> Dict[str, Any]:
     combined_weaknesses = state.get("known_weaknesses", []) + focus_areas
     
     materials = await tutor_agent.teach_topic(
+        user_id=state["user_id"],
         topic_name=state["current_topic_name"],
         subject_domain=state["subject_name"],
         user_level=state["user_level"],
@@ -189,6 +191,7 @@ async def memory_node(state: AgentState) -> Dict[str, Any]:
     weaknesses = [w["description"] for w in state.get("detected_weaknesses", [])]
     
     summary = await memory_agent.summarize_session(
+        user_id=state["user_id"],
         subject=state["subject_name"],
         topics_covered=[state["current_topic_name"]],
         overall_performance=f"Score: {state.get('new_mastery_score', 0.0)}",

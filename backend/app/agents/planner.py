@@ -2,6 +2,7 @@ from typing import List
 from pydantic import BaseModel
 
 from app.agents.base import BaseAgent
+from app.services.memory_service import memory_service
 
 class TopicSchema(BaseModel):
     name: str
@@ -25,11 +26,19 @@ class PlannerAgent(BaseAgent):
         
     async def generate_curriculum(
         self, 
+        user_id: str,
         subject_name: str, 
         subject_description: str, 
         user_goals: str, 
         current_level: str
     ) -> PlannerOutput:
+        
+        # Retrieve historical context for this user and subject
+        historical_context = await memory_service.recall_history(
+            user_id=user_id,
+            query=f"Curriculum and progression for {subject_name}",
+            n_results=2
+        )
         
         user_prompt = f"""
         Please generate a curriculum for:
@@ -37,6 +46,12 @@ class PlannerAgent(BaseAgent):
         Description: {subject_description}
         User Goals: {user_goals}
         User's Current Level: {current_level}
+        
+        Historical Context (Past Sessions):
+        {historical_context}
+        
+        Use the historical context to avoid repeating topics the user has already mastered, 
+        unless they need a brief refresher.
         """
         
         return await self.generate_structured(
