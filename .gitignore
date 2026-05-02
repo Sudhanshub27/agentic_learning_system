@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.Python
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment Variables — NEVER commit secrets
+.env
+
+# Database
+*.db
+*.sqlite3
+data/
+
+# ChromaDB persistence
+chroma_data/
+
+# Byte-compiled
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Docker
+.docker/
+
+# Distribution
+*.tar.gz
+*.whl
+
+# Jupyter
+.ipynb_checkpoints/
+
+# mypy
+.mypy_cache/
