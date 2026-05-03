@@ -1,15 +1,19 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Loader2, ArrowRight, BookOpen, Target, Sparkles, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Loader2, ArrowRight, BookOpen, Target, Sparkles, X, Trash2, User,
+  History, BarChart3, Brain, FileText, GraduationCap, ClipboardList, 
+  CheckSquare, Plus, AlertCircle
+} from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import CoursesGrid from '@/components/CoursesGrid';
-import DailyHabits from '@/components/DailyHabits';
+import DailyHabits, { DEFAULT_HABITS, HabitData } from '@/components/DailyHabits';
 import ExamAssignment from '@/components/ExamAssignment';
 import LessonView from '@/components/LessonView';
 import { learningApi, StartSessionResponse } from '@/lib/api';
 
-type View = 'dashboard' | 'lesson' | 'new-session';
+type View = 'dashboard' | 'lesson' | 'profile' | 'sessions' | 'progress' | 'memory' | 'notes';
 
 interface CourseEntry {
   name: string;
@@ -41,6 +45,7 @@ export default function Dashboard() {
   const [view, setView] = useState<View>('dashboard');
   const [activeNav, setActiveNav] = useState('dashboard');
   const [courses, setCourses] = useState<CourseEntry[]>([]);
+  const [habits, setHabits] = useState<HabitData[]>([]);
   const [activeCourse, setActiveCourse] = useState<CourseEntry | null>(null);
 
   // New Session Modal state
@@ -51,6 +56,22 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
 
   const { yearPct, monthPct, weekPct } = getTimeProgress();
+
+  // Load data from localStorage
+  useEffect(() => {
+    const savedCourses = localStorage.getItem('als_courses');
+    if (savedCourses) setCourses(JSON.parse(savedCourses));
+
+    const savedHabits = localStorage.getItem('als_habits');
+    if (savedHabits) setHabits(JSON.parse(savedHabits));
+    else setHabits(DEFAULT_HABITS);
+  }, []);
+
+  // Save data to localStorage
+  useEffect(() => {
+    if (courses.length > 0) localStorage.setItem('als_courses', JSON.stringify(courses));
+    if (habits.length > 0) localStorage.setItem('als_habits', JSON.stringify(habits));
+  }, [courses, habits]);
 
   const openNewSession = () => {
     setShowModal(true);
@@ -102,11 +123,63 @@ export default function Dashboard() {
     setCourses(prev => prev.map(c => c.name === updated.name ? updated : c));
   };
 
+  const handleToggleHabit = (habitName: string, date: string) => {
+    setHabits(prev => prev.map(h => {
+      if (h.name === habitName) {
+        const completed = h.completedDates.includes(date)
+          ? h.completedDates.filter(d => d !== date)
+          : [...h.completedDates, date];
+        return { ...h, completedDates: completed };
+      }
+      return h;
+    }));
+  };
+
+  const clearData = () => {
+    if (confirm("Are you sure you want to clear all local data? This cannot be undone.")) {
+      localStorage.removeItem('als_courses');
+      localStorage.removeItem('als_habits');
+      setCourses([]);
+      setHabits(DEFAULT_HABITS);
+      setActiveCourse(null);
+      setView('dashboard');
+      setActiveNav('dashboard');
+    }
+  };
+
+  const renderPlaceholderView = (title: string, icon: React.ReactNode, description: string) => (
+    <div className="max-w-[800px] mx-auto space-y-8 animate-fade-in-up mt-12 text-center">
+      <div className="inline-flex items-center justify-center p-6 bg-amber-500/10 rounded-3xl mb-4 border border-amber-500/20">
+        {icon}
+      </div>
+      <h1 className="text-4xl font-bold">{title}</h1>
+      <p className="text-[var(--text-muted)] text-lg max-w-xl mx-auto">{description}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+        <div className="card-elevated p-8 text-left">
+          <h3 className="font-bold text-lg mb-2">Upcoming Feature</h3>
+          <p className="text-sm text-[var(--text-muted)]">This view is currently being optimized for your custom learning profile. Stay tuned!</p>
+        </div>
+        <div className="card-elevated p-8 text-left">
+          <h3 className="font-bold text-lg mb-2">Data Integration</h3>
+          <p className="text-sm text-[var(--text-muted)]">Once active, this will sync with your AI agents to provide deep insights into your learning journey.</p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex min-h-screen">
       <Sidebar
         activeView={activeNav}
-        onNavigate={(v) => { setActiveNav(v); setView('dashboard'); }}
+        onNavigate={(v) => { 
+          setActiveNav(v); 
+          if (v === 'profile') setView('profile');
+          else if (v === 'sessions') setView('sessions');
+          else if (v === 'progress') setView('progress');
+          else if (v === 'memory') setView('memory');
+          else if (v === 'notes') setView('notes');
+          else setView('dashboard'); 
+        }}
         onNewSession={openNewSession}
         yearProgress={yearPct}
         monthProgress={monthPct}
@@ -118,7 +191,7 @@ export default function Dashboard() {
         {view === 'dashboard' && (
           <div className="max-w-[1200px] mx-auto space-y-6">
             <CoursesGrid courses={courses} onStartNew={openNewSession} onSelectCourse={selectCourse} />
-            <DailyHabits />
+            <DailyHabits habits={habits} onToggleHabit={handleToggleHabit} />
             <ExamAssignment />
           </div>
         )}
@@ -130,6 +203,74 @@ export default function Dashboard() {
               onBack={() => setView('dashboard')}
               onSessionUpdate={handleSessionUpdate}
             />
+          </div>
+        )}
+
+        {view === 'sessions' && renderPlaceholderView(
+          "Learning Sessions", 
+          <History className="w-12 h-12 text-amber-500" />,
+          "Review your past AI-guided learning sessions, curriculum changes, and historical progress."
+        )}
+
+        {view === 'progress' && renderPlaceholderView(
+          "Mastery Progress", 
+          <BarChart3 className="w-12 h-12 text-cyan-400" />,
+          "Visual breakdown of your mastery levels across all subjects, powered by our evaluation agents."
+        )}
+
+        {view === 'memory' && renderPlaceholderView(
+          "Memory Bank", 
+          <Brain className="w-12 h-12 text-purple-400" />,
+          "Access your RAG-powered knowledge base. See what the system has learned about your learning style."
+        )}
+
+        {view === 'notes' && renderPlaceholderView(
+          "Smart Notes", 
+          <FileText className="w-12 h-12 text-rose-400" />,
+          "AI-summarized notes from your lessons, organized by topic and difficulty level."
+        )}
+
+        {view === 'profile' && (
+          <div className="max-w-[800px] mx-auto space-y-8 animate-fade-in-up">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500 flex items-center justify-center">
+                <User className="w-8 h-8 text-black" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold">User Profile</h1>
+                <p className="text-[var(--text-muted)] text-sm">Manage your local storage and persistence settings.</p>
+              </div>
+            </div>
+
+            <div className="card">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <Trash2 className="w-5 h-5 text-rose-500" /> Danger Zone
+              </h2>
+              <p className="text-sm text-[var(--text-secondary)] mb-6">
+                Currently, your data is stored locally in your browser's <strong>localStorage</strong>. 
+                Use this button if you want to reset everything and start from scratch.
+              </p>
+              <button 
+                onClick={clearData}
+                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" /> Clear All Local Data
+              </button>
+            </div>
+
+            <div className="card">
+              <h2 className="text-xl font-bold mb-4">Local Statistics</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="card-elevated">
+                  <span className="text-[var(--text-muted)] text-xs uppercase font-bold">Total Courses</span>
+                  <div className="text-2xl font-bold mt-1">{courses.length}</div>
+                </div>
+                <div className="card-elevated">
+                  <span className="text-[var(--text-muted)] text-xs uppercase font-bold">Habits Tracked</span>
+                  <div className="text-2xl font-bold mt-1">{habits.length}</div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>

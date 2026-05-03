@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   ArrowLeft, ArrowRight, CheckCircle2, XCircle,
-  Trophy, Loader2, ChevronRight
+  Trophy, Loader2, ChevronRight, AlertCircle
 } from 'lucide-react';
 import { learningApi, StartSessionResponse, SubmitAnswersResponse, Question } from '@/lib/api';
 
@@ -27,23 +27,34 @@ export default function LessonView({ sessionData, onBack, onSessionUpdate }: Les
   const [loading, setLoading] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [quizResults, setQuizResults] = useState<SubmitAnswersResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleAnswerChange = (qid: string, val: string) => {
     setAnswers(prev => ({ ...prev, [qid]: val }));
+    setError(null);
   };
 
   const submitQuiz = async () => {
     setLoading(true);
+    setError(null);
     try {
+      console.log("[LessonView] Submitting answers:", answers);
       const results = await learningApi.submitAnswers({
         session_id: sessionData.session_id,
         user_id: "demo_user_1",
         answers,
       });
+      console.log("[LessonView] Received results:", results);
+      
+      if (!results || !results.grading_results) {
+        throw new Error("Invalid response from server");
+      }
+
       setQuizResults(results);
       setStep('RESULTS');
     } catch (err) {
-      console.error("Submit failed:", err);
+      console.error("[LessonView] Submit failed:", err);
+      setError("Failed to submit assessment. Please check your internet connection or backend server.");
     } finally {
       setLoading(false);
     }
@@ -61,6 +72,8 @@ export default function LessonView({ sessionData, onBack, onSessionUpdate }: Les
     setQuizResults(null);
     setStep('LESSON');
   };
+
+  const missingAnswersCount = sessionData.assessment_questions.length - Object.keys(answers).length;
 
   return (
     <div className="animate-fade-in-up">
@@ -124,6 +137,14 @@ export default function LessonView({ sessionData, onBack, onSessionUpdate }: Les
             <h2 className="text-2xl font-bold mb-1">Knowledge Check</h2>
             <p className="text-[var(--text-muted)]">Test your understanding of {sessionData.current_topic}</p>
           </div>
+          
+          {error && (
+            <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-3 text-rose-500">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <p className="text-sm font-medium">{error}</p>
+            </div>
+          )}
+
           <div className="space-y-4">
             {sessionData.assessment_questions.map((q, idx) => (
               <div key={q.question_id} className="card">
@@ -152,44 +173,77 @@ export default function LessonView({ sessionData, onBack, onSessionUpdate }: Les
               </div>
             ))}
           </div>
-          <div className="flex justify-center mt-8">
-            <button disabled={loading || Object.keys(answers).length < sessionData.assessment_questions.length} onClick={submitQuiz}
-              className="bg-white text-black hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed px-10 py-3.5 rounded-xl font-bold transition-all flex items-center gap-2"
+
+          <div className="flex flex-col items-center mt-8">
+            <button 
+              disabled={loading || missingAnswersCount > 0} 
+              onClick={submitQuiz}
+              className="bg-white text-black hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed px-10 py-3.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-xl shadow-white/5"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Submit Assessment"}
             </button>
+            {missingAnswersCount > 0 && !loading && (
+              <p className="mt-3 text-[var(--text-muted)] text-xs font-medium">
+                Please answer {missingAnswersCount} more question{missingAnswersCount > 1 ? 's' : ''} to submit.
+              </p>
+            )}
           </div>
         </div>
       )}
 
       {step === 'RESULTS' && quizResults && (
-        <div>
+        <div className="space-y-6">
           <div className="text-center mb-8">
             <Trophy className="w-12 h-12 text-amber-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold mb-2">Results</h2>
             <p className="text-[var(--text-muted)] max-w-lg mx-auto">{quizResults.analysis_summary}</p>
           </div>
+
           <div className="space-y-3">
             {quizResults.grading_results.map((res, idx) => (
               <div key={idx} className={`card flex items-start gap-4 ${res.is_correct ? 'border-green-500/20' : 'border-rose-500/20'}`}>
-                {res.is_correct ? <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" /> : <XCircle className="w-5 h-5 text-rose-500 mt-0.5 shrink-0" />}
-                <div>
-                  <h4 className="font-semibold text-sm mb-1">{res.is_correct ? "Correct" : "Needs Review"}</h4>
-                  <p className="text-sm text-[var(--text-muted)]">{res.feedback}</p>
+                {res.is_correct ? (
+                  <div className="bg-green-500/10 p-1.5 rounded-lg shrink-0">
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  </div>
+                ) : (
+                  <div className="bg-rose-500/10 p-1.5 rounded-lg shrink-0">
+                    <XCircle className="w-5 h-5 text-rose-500" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="font-bold text-sm">{res.is_correct ? "Mastered" : "Needs Review"}</h4>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${res.is_correct ? 'bg-green-500/20 text-green-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                      Score: {res.score}%
+                    </span>
+                  </div>
+                  <p className="text-sm text-[var(--text-secondary)] mb-3">{res.feedback}</p>
+                  
+                  {/* ALWAYS SHOW CORRECT ANSWER IF WRONG */}
                   {!res.is_correct && (
-                    <div className="mt-2 p-3 bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-subtle)]">
-                      <span className="text-[11px] text-[var(--text-muted)] uppercase font-bold block mb-1">Answer</span>
-                      <span className="text-green-400 text-sm">{res.correct_answer}</span>
+                    <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)]">
+                      <span className="text-[10px] text-[var(--text-muted)] uppercase font-bold block mb-1.5">Correct Explanation / Answer</span>
+                      <div className="text-green-400 text-sm font-medium leading-relaxed">
+                        {res.correct_answer}
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             ))}
           </div>
-          <div className="card mt-6 text-center">
-            <p className="text-amber-400 font-medium mb-4 text-lg">"{quizResults.next_action}"</p>
-            <button onClick={moveToNext} className="bg-amber-500 hover:bg-amber-400 text-black font-semibold px-8 py-3 rounded-xl transition-colors">
-              {quizResults.next_topic ? `Next: ${quizResults.next_topic}` : "Continue"}
+
+          <div className="card mt-8 text-center bg-gradient-to-br from-[var(--bg-card)] to-[var(--bg-elevated)] border-amber-500/20">
+            <h3 className="text-sm font-bold text-amber-500 uppercase tracking-widest mb-2">Next Step</h3>
+            <p className="text-white font-medium mb-6 text-lg leading-relaxed">"{quizResults.next_action}"</p>
+            
+            <button 
+              onClick={moveToNext} 
+              className="group bg-amber-500 hover:bg-amber-400 text-black font-bold px-10 py-4 rounded-xl transition-all shadow-xl shadow-amber-500/20 flex items-center gap-2 mx-auto"
+            >
+              {quizResults.next_topic ? `Continue: ${quizResults.next_topic}` : "Continue Learning"}
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
         </div>

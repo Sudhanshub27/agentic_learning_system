@@ -102,6 +102,24 @@ class BaseAgent:
 
         try:
             data = json.loads(json_candidate)
+            
+            # Resilience 1: If model expects a dict with one field (like 'questions') but we got a list
+            if isinstance(data, list):
+                # Try to find a field in the model that is a list
+                for field_name, field in model.model_fields.items():
+                    # For Pydantic v2:
+                    if hasattr(field, 'annotation') and (str(field.annotation).startswith('typing.List') or str(field.annotation).startswith('list')):
+                        data = {field_name: data}
+                        break
+            
+            # Resilience 2: If model expects a dict but the agent wrapped it in an extra key (e.g. {"output": {...}})
+            if isinstance(data, dict) and len(data) == 1:
+                key = list(data.keys())[0]
+                # If the key name is something like 'output', 'result', 'data' or the model name itself
+                if key.lower() in ['output', 'result', 'data', 'response', model.__name__.lower()]:
+                    if isinstance(data[key], dict):
+                        data = data[key]
+
             return model(**data)
         except json.JSONDecodeError as e:
             logger.error(f"[{self.role_name}] Failed to parse JSON: {e}\nCandidate: {json_candidate}\nRaw: {response_text}")

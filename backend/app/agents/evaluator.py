@@ -10,8 +10,8 @@ class QuestionSchema(BaseModel):
     question_type: str  # mcq, short_answer, coding
     question_text: str
     options: Optional[List[str]] = None
-    expected_answer: str
-    rubric: str
+    expected_answer: str = "No answer provided"
+    rubric: str = "Grade based on accuracy and understanding."
 
 class EvaluatorGenerateOutput(BaseModel):
     questions: List[QuestionSchema]

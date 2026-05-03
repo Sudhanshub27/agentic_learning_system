@@ -59,6 +59,7 @@ export default function Sidebar({ activeView, onNavigate, onNewSession, yearProg
             { id: 'progress', icon: BarChart3, label: 'Progress' },
             { id: 'memory', icon: Brain, label: 'Memory Bank' },
             { id: 'notes', icon: FileText, label: 'Notes' },
+            { id: 'profile', icon: BrainCircuit, label: 'Profile' },
           ].map(item => (
             <button
               key={item.id}
