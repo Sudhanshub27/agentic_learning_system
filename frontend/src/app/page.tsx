@@ -1,17 +1,60 @@
 "use client";
 
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { Loader2, ArrowRight, BookOpen, Target, Sparkles, X } from 'lucide-react';
+import Sidebar from '@/components/Sidebar';
+import CoursesGrid from '@/components/CoursesGrid';
+import DailyHabits from '@/components/DailyHabits';
+import ExamAssignment from '@/components/ExamAssignment';
+import LessonView from '@/components/LessonView';
 import { learningApi, StartSessionResponse } from '@/lib/api';
-import { BookOpen, BrainCircuit, Sparkles, Target, ArrowRight, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+
+type View = 'dashboard' | 'lesson' | 'new-session';
+
+interface CourseEntry {
+  name: string;
+  level: string;
+  progress: number;
+  emoji: string;
+  sessionData?: StartSessionResponse;
+}
+
+const EMOJIS = ['🧬', '⚗️', '📐', '💰', '⚛️', '🐍', '🎨', '🌍', '🔬', '📊'];
+
+function getTimeProgress() {
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const endOfYear = new Date(now.getFullYear() + 1, 0, 1);
+  const yearPct = Math.round(((now.getTime() - startOfYear.getTime()) / (endOfYear.getTime() - startOfYear.getTime())) * 100);
+
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const monthPct = Math.round(((now.getTime() - startOfMonth.getTime()) / (endOfMonth.getTime() - startOfMonth.getTime())) * 100);
+
+  const day = now.getDay() || 7;
+  const weekPct = Math.round((day / 7) * 100);
+
+  return { yearPct, monthPct, weekPct };
+}
 
 export default function Dashboard() {
-  const [subject, setSubject] = useState("");
-  const [goals, setGoals] = useState("");
-  const [level, setLevel] = useState("Beginner");
-  
+  const [view, setView] = useState<View>('dashboard');
+  const [activeNav, setActiveNav] = useState('dashboard');
+  const [courses, setCourses] = useState<CourseEntry[]>([]);
+  const [activeCourse, setActiveCourse] = useState<CourseEntry | null>(null);
+
+  // New Session Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [goals, setGoals] = useState('');
+  const [level, setLevel] = useState('Beginner');
   const [loading, setLoading] = useState(false);
-  const [sessionData, setSessionData] = useState<StartSessionResponse | null>(null);
+
+  const { yearPct, monthPct, weekPct } = getTimeProgress();
+
+  const openNewSession = () => {
+    setShowModal(true);
+  };
 
   const startSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,131 +64,125 @@ export default function Dashboard() {
         user_id: "demo_user_1",
         subject_name: subject,
         user_goals: goals,
-        current_level: level
+        current_level: level,
       });
-      setSessionData(data);
-    } catch (error) {
-      console.error("Failed to start session:", error);
+      const newCourse: CourseEntry = {
+        name: subject,
+        level,
+        progress: 0,
+        emoji: EMOJIS[courses.length % EMOJIS.length],
+        sessionData: data,
+      };
+      setCourses(prev => [...prev, newCourse]);
+      setActiveCourse(newCourse);
+      setShowModal(false);
+      setSubject('');
+      setGoals('');
+      setView('lesson');
+    } catch (err) {
+      console.error("Failed to start:", err);
+      alert("Failed to start session. Check that the backend is running on port 8000.");
     } finally {
       setLoading(false);
     }
   };
 
+  const selectCourse = (name: string) => {
+    const c = courses.find(c => c.name === name);
+    if (c?.sessionData) {
+      setActiveCourse(c);
+      setView('lesson');
+    }
+  };
+
+  const handleSessionUpdate = (data: StartSessionResponse) => {
+    if (!activeCourse) return;
+    const updated = { ...activeCourse, sessionData: data, progress: Math.min(activeCourse.progress + 20, 100) };
+    setActiveCourse(updated);
+    setCourses(prev => prev.map(c => c.name === updated.name ? updated : c));
+  };
+
   return (
-    <main className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-6">
-      {/* Animated Background Blobs */}
-      <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-2xl opacity-20 animate-blob"></div>
-      <div className="absolute top-0 -right-4 w-72 h-72 bg-indigo-500 rounded-full mix-blend-multiply filter blur-2xl opacity-20 animate-blob animation-delay-2000"></div>
-      <div className="absolute -bottom-8 left-20 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-2xl opacity-20 animate-blob animation-delay-4000"></div>
+    <div className="flex min-h-screen">
+      <Sidebar
+        activeView={activeNav}
+        onNavigate={(v) => { setActiveNav(v); setView('dashboard'); }}
+        onNewSession={openNewSession}
+        yearProgress={yearPct}
+        monthProgress={monthPct}
+        weekProgress={weekPct}
+      />
 
-      <div className="relative z-10 w-full max-w-4xl">
-        {!sessionData ? (
-          <div className="glass-panel p-8 md:p-12 rounded-3xl shadow-2xl border border-white/10">
-            <div className="text-center mb-10">
-              <div className="inline-flex items-center justify-center p-3 bg-indigo-500/10 rounded-2xl mb-4 border border-indigo-500/20">
-                <BrainCircuit className="w-8 h-8 text-indigo-400" />
-              </div>
-              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-indigo-200">
-                Agentic Learning System
-              </h1>
-              <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-                Enter any subject and our autonomous AI agents will generate a personalized curriculum and teach it to you interactively.
-              </p>
-            </div>
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+        {view === 'dashboard' && (
+          <div className="max-w-[1200px] mx-auto space-y-6">
+            <CoursesGrid courses={courses} onStartNew={openNewSession} onSelectCourse={selectCourse} />
+            <DailyHabits />
+            <ExamAssignment />
+          </div>
+        )}
 
-            <form onSubmit={startSession} className="space-y-6 max-w-xl mx-auto">
+        {view === 'lesson' && activeCourse?.sessionData && (
+          <div className="max-w-[900px] mx-auto">
+            <LessonView
+              sessionData={activeCourse.sessionData}
+              onBack={() => setView('dashboard')}
+              onSessionUpdate={handleSessionUpdate}
+            />
+          </div>
+        )}
+      </main>
+
+      {/* ── New Session Modal ── */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[var(--bg-card)] border border-[var(--border-subtle)] rounded-2xl w-full max-w-lg p-8 relative animate-fade-in-up">
+            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-white transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-bold mb-6">Start a New Course</h2>
+            <form onSubmit={startSession} className="space-y-5">
               <div>
-                <label className="flex items-center text-sm font-medium text-slate-300 mb-2">
-                  <BookOpen className="w-4 h-4 mr-2" /> What do you want to learn?
+                <label className="flex items-center text-sm font-medium text-[var(--text-secondary)] mb-2">
+                  <BookOpen className="w-4 h-4 mr-2 text-amber-400" /> Subject
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="e.g. Quantum Physics, Spanish, Python..."
-                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                <input type="text" required value={subject} onChange={e => setSubject(e.target.value)}
+                  placeholder="e.g. Quantum Computing, Python, Economics..."
+                  className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-white placeholder-[var(--text-muted)] focus:outline-none focus:border-amber-500/50 text-sm"
                 />
               </div>
-
               <div>
-                <label className="flex items-center text-sm font-medium text-slate-300 mb-2">
-                  <Target className="w-4 h-4 mr-2" /> What are your goals?
+                <label className="flex items-center text-sm font-medium text-[var(--text-secondary)] mb-2">
+                  <Target className="w-4 h-4 mr-2 text-amber-400" /> Goals
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={goals}
-                  onChange={(e) => setGoals(e.target.value)}
+                <input type="text" value={goals} onChange={e => setGoals(e.target.value)}
                   placeholder="e.g. Pass an exam, build a project..."
-                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-white placeholder-[var(--text-muted)] focus:outline-none focus:border-amber-500/50 text-sm"
                 />
               </div>
-
               <div>
-                <label className="flex items-center text-sm font-medium text-slate-300 mb-2">
-                  <Sparkles className="w-4 h-4 mr-2" /> Current Experience Level
+                <label className="flex items-center text-sm font-medium text-[var(--text-secondary)] mb-2">
+                  <Sparkles className="w-4 h-4 mr-2 text-amber-400" /> Level
                 </label>
-                <select
-                  value={level}
-                  onChange={(e) => setLevel(e.target.value)}
-                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all appearance-none"
+                <select value={level} onChange={e => setLevel(e.target.value)}
+                  className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500/50 text-sm appearance-none cursor-pointer"
                 >
-                  <option value="Absolute Beginner">Absolute Beginner</option>
-                  <option value="Beginner">Beginner</option>
-                  <option value="Intermediate">Intermediate</option>
-                  <option value="Advanced">Advanced</option>
+                  <option>Absolute Beginner</option>
+                  <option>Beginner</option>
+                  <option>Intermediate</option>
+                  <option>Advanced</option>
                 </select>
               </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full relative group overflow-hidden rounded-xl p-[1px]"
+              <button type="submit" disabled={loading}
+                className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
               >
-                <span className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 rounded-xl opacity-70 group-hover:opacity-100 transition-opacity duration-300"></span>
-                <div className="relative bg-slate-950 px-8 py-4 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:bg-opacity-0">
-                  {loading ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-white" />
-                  ) : (
-                    <>
-                      <span className="text-white font-semibold mr-2">Start Learning Journey</span>
-                      <ArrowRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </div>
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><span>Generate Journey</span><ArrowRight className="w-4 h-4" /></>}
               </button>
             </form>
           </div>
-        ) : (
-          <div className="glass-panel p-8 rounded-3xl shadow-2xl border border-white/10">
-            <h2 className="text-2xl font-bold text-white mb-6">Your Curriculum Prepared!</h2>
-            <div className="space-y-4">
-              {sessionData.curriculum.map((topic, idx) => (
-                <div key={idx} className="p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-                  <div className="flex items-center">
-                    <span className="bg-indigo-500 text-white text-xs font-bold px-2 py-1 rounded-md mr-3">
-                      Module {topic.order_index}
-                    </span>
-                    <h3 className="text-lg font-semibold text-white">{topic.name}</h3>
-                  </div>
-                  <p className="text-slate-400 mt-2 text-sm">{topic.description}</p>
-                </div>
-              ))}
-            </div>
-            
-            <div className="mt-8 pt-8 border-t border-slate-700">
-              <h3 className="text-xl font-bold text-indigo-300 mb-4">First Lesson: {sessionData.current_topic}</h3>
-              <div className="prose prose-invert max-w-none bg-slate-900/50 p-6 rounded-xl border border-slate-700 overflow-y-auto max-h-96">
-                {/* In a real app we would render markdown here using react-markdown */}
-                <pre className="whitespace-pre-wrap font-sans text-slate-300">{sessionData.teaching_materials}</pre>
-              </div>
-            </div>
-            
-            {/* The rest of the interactive quiz UI would go here */}
-          </div>
-        )}
-      </div>
-    </main>
+        </div>
+      )}
+    </div>
   );
 }

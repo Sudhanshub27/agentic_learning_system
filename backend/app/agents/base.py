@@ -49,8 +49,9 @@ class BaseAgent:
         response_text = await llm_service.generate(
             task_type=task_type,
             system_prompt=self.prompt_template,
-            user_prompt=user_prompt,
-            temperature=temperature
+            prompt=user_prompt,
+            temperature=temperature,
+            json_mode=True
         )
         
         return self._parse_json(response_text, response_model)
@@ -68,32 +69,43 @@ class BaseAgent:
         return await llm_service.generate(
             task_type=task_type,
             system_prompt=self.prompt_template,
-            user_prompt=user_prompt,
+            prompt=user_prompt,
             temperature=temperature
         )
         
     def _parse_json(self, response_text: str, model: Type[T]) -> T:
         """
-        Extracts JSON from markdown code blocks if necessary and parses it into a Pydantic model.
+        Extracts JSON from markdown code blocks or general text and parses it into a Pydantic model.
         """
-        # Clean up markdown code blocks if the LLM wrapped the JSON
         cleaned_text = response_text.strip()
-        if cleaned_text.startswith("```json"):
-            cleaned_text = cleaned_text[7:]
-        elif cleaned_text.startswith("```"):
-            cleaned_text = cleaned_text[3:]
-            
-        if cleaned_text.endswith("```"):
-            cleaned_text = cleaned_text[:-3]
-            
-        cleaned_text = cleaned_text.strip()
         
+        # 1. Try to find the JSON block if it's embedded in text
+        start_idx = -1
+        end_idx = -1
+        
+        # Look for the start of an object or array
+        for i, char in enumerate(cleaned_text):
+            if char in ['{', '[']:
+                start_idx = i
+                break
+        
+        # Look for the end of an object or array
+        for i, char in enumerate(reversed(cleaned_text)):
+            if char in ['}', ']']:
+                end_idx = len(cleaned_text) - i
+                break
+                
+        if start_idx != -1 and end_idx != -1:
+            json_candidate = cleaned_text[start_idx:end_idx]
+        else:
+            json_candidate = cleaned_text
+
         try:
-            data = json.loads(cleaned_text)
+            data = json.loads(json_candidate)
             return model(**data)
         except json.JSONDecodeError as e:
-            logger.error(f"[{self.role_name}] Failed to parse JSON: {e}\nRaw output: {response_text}")
+            logger.error(f"[{self.role_name}] Failed to parse JSON: {e}\nCandidate: {json_candidate}\nRaw: {response_text}")
             raise ValueError("Agent failed to output valid JSON.") from e
         except Exception as e:
-            logger.error(f"[{self.role_name}] Failed to validate against Pydantic schema: {e}\nRaw output: {response_text}")
+            logger.error(f"[{self.role_name}] Failed to validate against Pydantic schema: {e}\nCandidate: {json_candidate}\nRaw: {response_text}")
             raise ValueError("Agent output did not match expected schema.") from e

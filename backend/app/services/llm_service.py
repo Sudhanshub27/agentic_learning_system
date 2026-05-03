@@ -29,15 +29,15 @@ logger = logging.getLogger(__name__)
 # Smart routing: maps task types to ordered provider preferences
 # First provider is preferred; falls back to next if unavailable
 ROUTING_TABLE: dict[str, list[str]] = {
-    "curriculum_generation": ["gemini", "ollama"],    # Complex planning needs strong model
-    "teaching":             ["ollama", "gemini"],      # Primary local, fallback cloud
-    "quiz_generation":      ["ollama", "gemini"],      # Generate test questions
-    "quiz_grading":         ["groq", "ollama"],        # Speed matters for grading
-    "coding_challenges":    ["deepseek", "ollama"],    # DeepSeek excels at code
-    "code_evaluation":      ["deepseek", "groq"],      # Code grading
-    "analysis":             ["gemini", "ollama"],       # Pattern detection needs reasoning
-    "strategy":             ["gemini", "ollama"],       # Adaptation decisions
-    "general":              ["ollama", "gemini"],       # Default: local first
+    "curriculum_generation": ["gemini", "groq", "deepseek", "ollama"],    # Complex planning needs strong model
+    "teaching":             ["gemini", "groq", "deepseek", "ollama"],      # Prefer cloud for speed/reliability
+    "quiz_generation":      ["gemini", "groq", "deepseek", "ollama"],      # Generate test questions
+    "quiz_grading":         ["groq", "gemini", "deepseek", "ollama"],        # Speed matters for grading
+    "coding_challenges":    ["deepseek", "gemini", "groq", "ollama"],    # DeepSeek excels at code
+    "code_evaluation":      ["deepseek", "groq", "gemini", "ollama"],      # Code grading
+    "analysis":             ["gemini", "groq", "deepseek", "ollama"],       # Pattern detection needs reasoning
+    "strategy":             ["gemini", "groq", "deepseek", "ollama"],       # Adaptation decisions
+    "general":              ["gemini", "groq", "deepseek", "ollama"],       # Default: cloud first
 }
 
 # Provider → LiteLLM model string mapping
